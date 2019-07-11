@@ -1,4 +1,4 @@
-package net.gridtech.machinecontroller
+package net.gridtech.machine
 
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: Machine Controller
+  data:
+    mongodb:
+      uri: mongodb://localhost:27018/machine_controller
+server:
+  port: 9090
+machine:
+  node-id: domain01
+  node-secret: 123456
+  parent-entry-point: ws://localhost:8090/master
