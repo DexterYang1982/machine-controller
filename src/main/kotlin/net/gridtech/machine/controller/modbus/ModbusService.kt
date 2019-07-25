@@ -19,12 +19,12 @@ class ModbusService {
 
     @PostConstruct
     fun start() {
-        bootService.dataHolder.getEntityByTagsObservable<ModbusSlave>(ModbusSlave.tags).subscribe { modbusSlave ->
+        bootService.dataHolder.getEntityByConditionObservable { it is ModbusSlave }.map { it as ModbusSlave }.subscribe { modbusSlave ->
             slaveTaskMap[modbusSlave.id] =
                     ModbusSlaveTask(
                             modbusSlave,
-                            bootService.dataHolder.getEntityByTagsObservable<ModbusUnit>(ModbusUnit.tags)
-                                    .filter { it.source?.path?.contains(modbusSlave.id) == true }
+                            bootService.dataHolder.getEntityByConditionObservable { it is ModbusUnit && it.source?.path?.contains(modbusSlave.id) == true }
+                                    .map { it as ModbusUnit }
                     )
             modbusSlave.onDelete().subscribe { _, _ ->
                 slaveTaskMap.remove(modbusSlave.id)?.stop()

@@ -20,7 +20,8 @@ import net.gridtech.machine.model.property.field.ValueDescription
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-class ModbusSlaveTask(private val modbusSlave: ModbusSlave, modbusUnitObservable: Observable<ModbusUnit>) {
+class ModbusSlaveTask(modbusSlave: ModbusSlave, modbusUnitObservable: Observable<ModbusUnit>) {
+    private var currentConnectionStatus = false
     private val writeList = ArrayList<Triple<EntityFieldValue<ValueDescription>, WritePoint, IFieldValue>>()
     private val connection = modbusSlave.entityClass.connection.getFieldValue(modbusSlave)
     private val modbusUnits = ConcurrentHashMap<String, ModbusUnit>()
@@ -41,16 +42,16 @@ class ModbusSlaveTask(private val modbusSlave: ModbusSlave, modbusUnitObservable
         disposables.add(taskSubject.delay(100, TimeUnit.MILLISECONDS).subscribe {
             dealWithTask(it)
         })
-        taskSubject.onNext(0)
     }
 
     private fun dealWithTask(lastReadIndex: Int) {
-        if (connection.value == true) {
+        if (currentConnectionStatus) {
             if (writeList.size > 0) {
                 val (resultField, writePoint, commandFieldValue) = writeList.removeAt(0)
                 master?.apply {
                     modbusWrite(this, writePoint, commandFieldValue).subscribe(
                             {
+                                println("----------------")
                                 resultField.update(CommandResult.ACCEPTED.name, commandFieldValue.session)
                                 taskSubject.onNext(lastReadIndex)
                             },
@@ -103,9 +104,14 @@ class ModbusSlaveTask(private val modbusSlave: ModbusSlave, modbusUnitObservable
     private fun checkMasterStatus() {
         master?.connect()?.whenCompleteAsync { _, e ->
             val status = e == null
-
             if (status != connection.value) {
                 connection.update(status)
+            }
+            if (currentConnectionStatus != status) {
+                currentConnectionStatus = status
+                if (currentConnectionStatus) {
+                    taskSubject.onNext(0)
+                }
             }
             if (e != null) {
                 System.err.println(e.message)
