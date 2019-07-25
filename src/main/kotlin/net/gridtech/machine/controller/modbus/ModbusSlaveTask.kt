@@ -51,7 +51,6 @@ class ModbusSlaveTask(modbusSlave: ModbusSlave, modbusUnitObservable: Observable
                 master?.apply {
                     modbusWrite(this, writePoint, commandFieldValue).subscribe(
                             {
-                                println("----------------")
                                 resultField.update(CommandResult.ACCEPTED.name, commandFieldValue.session)
                                 taskSubject.onNext(lastReadIndex)
                             },
