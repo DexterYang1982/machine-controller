@@ -20,7 +20,7 @@ class TunnelTransactionService {
 
     @PostConstruct
     fun start() {
-        bootService.dataHolder.getEntityByConditionObservable { it is Tunnel }.map { cast<Tunnel>(it) }.subscribe { tunnel ->
+        bootService.dataHolder.getEntityByConditionObservable { it is Tunnel }.map { cast<Tunnel>(it)!! }.subscribe { tunnel ->
             val currentTransaction = tunnel.entityClass.currentTransaction.getFieldValue(tunnel)
             currentTransaction.observable.subscribe {
                 val transaction = clone(it)

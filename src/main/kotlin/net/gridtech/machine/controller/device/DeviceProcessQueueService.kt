@@ -16,7 +16,7 @@ class DeviceProcessQueueService {
 
     @PostConstruct
     fun start() {
-        bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it) }.subscribe { device ->
+        bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it)!! }.subscribe { device ->
             val currentProcess = device.entityClass.currentProcess.getFieldValue(device)
             val processQueue = device.entityClass.processQueue.getFieldValue(device)
             val disposable = Observable.merge(

@@ -24,7 +24,7 @@ class DeviceProcessService {
 
     @PostConstruct
     fun start() {
-        bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it) }.subscribe { device ->
+        bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it)!! }.subscribe { device ->
             val disposable = device.entityClass.currentProcess.getFieldValue(device).observable
                     .switchMap { processRuntime ->
                         when (processRuntime.state) {
