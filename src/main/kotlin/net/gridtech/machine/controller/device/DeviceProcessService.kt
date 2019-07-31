@@ -2,9 +2,11 @@ package net.gridtech.machine.controller.device
 
 import io.reactivex.Observable
 import net.gridtech.core.util.cast
+import net.gridtech.core.util.currentTime
 import net.gridtech.machine.controller.init.BootService
 import net.gridtech.machine.controller.utils.ReadWriteService
 import net.gridtech.machine.model.entity.Device
+import net.gridtech.machine.model.entity.Tunnel
 import net.gridtech.machine.model.entityField.ProcessState
 import net.gridtech.machine.model.entityField.StepRuntime
 import net.gridtech.machine.model.entityField.StepState
@@ -23,7 +25,7 @@ class DeviceProcessService {
     @PostConstruct
     fun start() {
         bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it) }.subscribe { device ->
-            device.entityClass.currentProcess.getFieldValue(device).observable
+            val disposable = device.entityClass.currentProcess.getFieldValue(device).observable
                     .switchMap { processRuntime ->
                         when (processRuntime.state) {
                             ProcessState.QUEUED -> {
@@ -74,7 +76,10 @@ class DeviceProcessService {
                             }
                             ProcessNextAction.RUN, ProcessNextAction.FINISH -> {
                                 if (nextAction == ProcessNextAction.FINISH) {
-                                    processRuntime.stepRuntime.lastOrNull()?.state = StepState.FINISHED
+                                    processRuntime.stepRuntime.lastOrNull()?.apply {
+                                        state = StepState.FINISHED
+                                        endTime = currentTime()
+                                    }
                                 }
                                 val nextStep = device.getProcessById(processRuntime.deviceProcessId)
                                         ?.steps
@@ -86,7 +91,9 @@ class DeviceProcessService {
                                     processRuntime.stepRuntime = processRuntime.stepRuntime.toMutableList().apply {
                                         add(StepRuntime(
                                                 stepId = nextStep.id,
-                                                state = StepState.RUNNING
+                                                state = StepState.RUNNING,
+                                                startTime = currentTime(),
+                                                endTime = null
                                         ))
                                     }
                                 } else {
@@ -94,18 +101,32 @@ class DeviceProcessService {
                                 }
                             }
                             ProcessNextAction.ERROR -> {
-                                processRuntime.stepRuntime.lastOrNull()?.state = StepState.ERROR
+                                processRuntime.stepRuntime.lastOrNull()?.apply {
+                                    state = StepState.ERROR
+                                    endTime = currentTime()
+                                }
                                 processRuntime.state = ProcessState.ERROR
                             }
                             ProcessNextAction.TIMEOUT -> {
-                                processRuntime.stepRuntime.lastOrNull()?.state = StepState.TIMEOUT
+                                processRuntime.stepRuntime.lastOrNull()?.apply {
+                                    state = StepState.TIMEOUT
+                                    endTime = currentTime()
+                                }
                                 processRuntime.state = ProcessState.ERROR
                             }
                             else -> {
                             }
                         }
+                        processRuntime.tunnelId
+                                ?.let { bootService.dataHolder.getEntityByIdObservable<Tunnel>(it) }
+                                ?.subscribe { tunnel, _ ->
+                                    tunnel.updateTunnelProcessState(processRuntime)
+                                }
                         currentProcessFieldValue.update(processRuntime, currentProcessFieldValue.session)
                     }
+            device.onDelete().subscribe { _, _ ->
+                disposable.dispose()
+            }
         }
     }
 
