@@ -41,6 +41,7 @@ class BootService {
                 nodeDao,
                 fieldValueDao
         )
+        bootstrap.startHostInfoChangServer(54321)
         hostMaster = HostMaster(bootstrap)
         dataHolder = DataHolder(bootstrap, null)
     }
