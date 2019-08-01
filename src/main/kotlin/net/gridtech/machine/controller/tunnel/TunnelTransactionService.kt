@@ -24,7 +24,7 @@ class TunnelTransactionService {
             val currentTransaction = tunnel.entityClass.currentTransaction.getFieldValue(tunnel)
             currentTransaction.observable.subscribe {
                 val transaction = clone(it)
-                getNextProcessQueue(transaction)?.apply {
+                getNextProcessQueue(transaction)?.takeIf { queue -> queue.isNotEmpty() }?.apply {
                     bootService.dataHolder.getEntityByIdObservable<Device>(first().deviceId).subscribe { device, _ ->
                         device.addNewProcessQueue(this)
                     }
@@ -57,7 +57,7 @@ class TunnelTransactionService {
             }
         }
         return if (queueStartIndex != null && queueEndIndex != null) {
-            transaction.transactionProcesses.subList(queueStartIndex, queueEndIndex)
+            transaction.transactionProcesses.subList(queueStartIndex, queueEndIndex+1)
         } else {
             null
         }

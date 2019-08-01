@@ -7,6 +7,6 @@ spring:
 server:
   port: 9090
 machine:
-  node-id: 1563763242802
+  node-id: 1564556360961
   node-secret: 123456
   parent-entry-point: ws://localhost:8080/master

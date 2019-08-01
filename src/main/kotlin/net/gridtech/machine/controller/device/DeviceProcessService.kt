@@ -25,18 +25,19 @@ class DeviceProcessService {
     @PostConstruct
     fun start() {
         bootService.dataHolder.getEntityByConditionObservable { it is Device }.map { cast<Device>(it)!! }.subscribe { device ->
-            val disposable = device.entityClass.currentProcess.getFieldValue(device).observable
+            val currentProcessFieldValue = device.entityClass.currentProcess.getFieldValue(device)
+            val disposable = currentProcessFieldValue.observable
                     .switchMap { processRuntime ->
                         when (processRuntime.state) {
                             ProcessState.QUEUED -> {
                                 if (processRuntime.delay > 0) {
-                                    Observable.just(ProcessNextAction.WAIT)
+                                    Observable.just(ProcessNextAction.WAIT to processRuntime)
                                 } else {
-                                    Observable.just(ProcessNextAction.RUN)
+                                    Observable.just(ProcessNextAction.RUN to processRuntime)
                                 }
                             }
                             ProcessState.WAITING -> {
-                                Observable.timer(processRuntime.delay, TimeUnit.MILLISECONDS).map { ProcessNextAction.RUN }
+                                Observable.timer(processRuntime.delay, TimeUnit.MILLISECONDS).map { ProcessNextAction.RUN to processRuntime }
                             }
                             ProcessState.RUNNING -> {
                                 processRuntime.stepRuntime.lastOrNull()
@@ -46,7 +47,7 @@ class DeviceProcessService {
                                             }
                                         }?.let { deviceProcessStep ->
                                             if (device.entityClass.healthy.getFieldValue(device).value == false) {
-                                                Observable.just(ProcessNextAction.ERROR)
+                                                Observable.just(ProcessNextAction.ERROR to processRuntime)
                                             } else {
                                                 deviceProcessStep.execute?.apply {
                                                     val session = device.entityClass.currentProcess.getFieldValue(device).session
@@ -55,74 +56,81 @@ class DeviceProcessService {
                                                 Observable.merge(
                                                         readWriteService.readConditionObservable(deviceProcessStep.endCondition)
                                                                 .filter { it }
-                                                                .map { ProcessNextAction.FINISH },
+                                                                .map { ProcessNextAction.FINISH to processRuntime },
                                                         Observable.timer(deviceProcessStep.timeout, TimeUnit.SECONDS)
-                                                                .map { ProcessNextAction.TIMEOUT }
+                                                                .map { ProcessNextAction.TIMEOUT to processRuntime }
                                                 )
                                             }
-                                        } ?: Observable.just(ProcessNextAction.ERROR)
+                                        } ?: Observable.just(ProcessNextAction.ERROR to processRuntime)
                             }
-                            else -> Observable.just(ProcessNextAction.NONE)
+                            ProcessState.FINISHED -> {
+                                Observable.just(ProcessNextAction.NEXT to processRuntime)
+                            }
+                            else -> Observable.just(ProcessNextAction.NONE to processRuntime)
                         }
                     }
-                    .filter { it != ProcessNextAction.NONE }
-                    .subscribe { nextAction ->
-                        val currentProcessFieldValue = device.entityClass.currentProcess.getFieldValue(device)
-                        val processRuntime = currentProcessFieldValue.value!!.copy()
-
-                        when (nextAction) {
-                            ProcessNextAction.WAIT -> {
-                                processRuntime.state = ProcessState.WAITING
-                            }
-                            ProcessNextAction.RUN, ProcessNextAction.FINISH -> {
-                                if (nextAction == ProcessNextAction.FINISH) {
+                    .filter { (nextAction, _) ->
+                        nextAction != ProcessNextAction.NONE
+                    }
+                    .subscribe { (nextAction, pr) ->
+                        if (nextAction == ProcessNextAction.NEXT) {
+                            device.finishedCurrentProcess()
+                        } else {
+                            val processRuntime = pr.copy()
+                            when (nextAction) {
+                                ProcessNextAction.WAIT -> {
+                                    processRuntime.state = ProcessState.WAITING
+                                }
+                                ProcessNextAction.RUN, ProcessNextAction.FINISH -> {
+                                    if (nextAction == ProcessNextAction.FINISH) {
+                                        processRuntime.stepRuntime.lastOrNull()?.apply {
+                                            state = StepState.FINISHED
+                                            endTime = currentTime()
+                                        }
+                                    }
+                                    val nextStep = device.getProcessById(processRuntime.deviceProcessId)
+                                            ?.steps
+                                            ?.find { deviceProcessStep ->
+                                                readWriteService.readConditionValue(deviceProcessStep.executeCondition)
+                                            }
+                                    if (nextStep != null) {
+                                        processRuntime.state = ProcessState.RUNNING
+                                        processRuntime.stepRuntime = processRuntime.stepRuntime.toMutableList().apply {
+                                            add(StepRuntime(
+                                                    stepId = nextStep.id,
+                                                    state = StepState.RUNNING,
+                                                    startTime = currentTime(),
+                                                    endTime = null
+                                            ))
+                                        }
+                                    } else {
+                                        processRuntime.state = ProcessState.FINISHED
+                                    }
+                                }
+                                ProcessNextAction.ERROR -> {
                                     processRuntime.stepRuntime.lastOrNull()?.apply {
-                                        state = StepState.FINISHED
+                                        state = StepState.ERROR
                                         endTime = currentTime()
                                     }
+                                    processRuntime.state = ProcessState.ERROR
                                 }
-                                val nextStep = device.getProcessById(processRuntime.deviceProcessId)
-                                        ?.steps
-                                        ?.find { deviceProcessStep ->
-                                            readWriteService.readConditionValue(deviceProcessStep.executeCondition)
-                                        }
-                                if (nextStep != null) {
-                                    processRuntime.state = ProcessState.RUNNING
-                                    processRuntime.stepRuntime = processRuntime.stepRuntime.toMutableList().apply {
-                                        add(StepRuntime(
-                                                stepId = nextStep.id,
-                                                state = StepState.RUNNING,
-                                                startTime = currentTime(),
-                                                endTime = null
-                                        ))
+                                ProcessNextAction.TIMEOUT -> {
+                                    processRuntime.stepRuntime.lastOrNull()?.apply {
+                                        state = StepState.TIMEOUT
+                                        endTime = currentTime()
                                     }
-                                } else {
-                                    processRuntime.state = ProcessState.FINISHED
+                                    processRuntime.state = ProcessState.ERROR
+                                }
+                                else -> {
                                 }
                             }
-                            ProcessNextAction.ERROR -> {
-                                processRuntime.stepRuntime.lastOrNull()?.apply {
-                                    state = StepState.ERROR
-                                    endTime = currentTime()
-                                }
-                                processRuntime.state = ProcessState.ERROR
-                            }
-                            ProcessNextAction.TIMEOUT -> {
-                                processRuntime.stepRuntime.lastOrNull()?.apply {
-                                    state = StepState.TIMEOUT
-                                    endTime = currentTime()
-                                }
-                                processRuntime.state = ProcessState.ERROR
-                            }
-                            else -> {
-                            }
+                            processRuntime.tunnelId
+                                    ?.let { bootService.dataHolder.getEntityByIdObservable<Tunnel>(it) }
+                                    ?.subscribe { tunnel, _ ->
+                                        tunnel.updateTunnelProcessState(processRuntime)
+                                    }
+                            currentProcessFieldValue.update(processRuntime, currentProcessFieldValue.session)
                         }
-                        processRuntime.tunnelId
-                                ?.let { bootService.dataHolder.getEntityByIdObservable<Tunnel>(it) }
-                                ?.subscribe { tunnel, _ ->
-                                    tunnel.updateTunnelProcessState(processRuntime)
-                                }
-                        currentProcessFieldValue.update(processRuntime, currentProcessFieldValue.session)
                     }
             device.onDelete().subscribe { _, _ ->
                 disposable.dispose()
@@ -136,6 +144,7 @@ class DeviceProcessService {
         RUN,
         ERROR,
         TIMEOUT,
-        FINISH
+        FINISH,
+        NEXT
     }
 }

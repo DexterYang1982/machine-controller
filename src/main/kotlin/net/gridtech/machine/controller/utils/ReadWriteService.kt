@@ -76,7 +76,10 @@ class ReadWriteService {
 
     fun readConditionValue(readCondition: ReadCondition): Boolean =
             readConditionFieldValues(readCondition).map { (entityRead, customFieldValue) ->
-                customFieldValue?.value?.id == entityRead.valueDescriptionId
+                if (entityRead.equals)
+                    customFieldValue?.value?.id == entityRead.valueDescriptionId
+                else
+                    customFieldValue?.value?.id != entityRead.valueDescriptionId
             }.let {
                 if (readCondition.matchAll)
                     !it.contains(false)
