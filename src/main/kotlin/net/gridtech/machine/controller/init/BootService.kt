@@ -19,7 +19,7 @@ class BootService {
     @Autowired
     lateinit var nodeClassDao: NodeClassDao
     @Autowired
-    lateinit var fieldClassDao: FieldDao
+    lateinit var fieldDao: FieldDao
     @Autowired
     lateinit var nodeDao: NodeDao
     @Autowired
@@ -37,7 +37,7 @@ class BootService {
         bootstrap = Bootstrap(
                 true,
                 nodeClassDao,
-                fieldClassDao,
+                fieldDao,
                 nodeDao,
                 fieldValueDao
         )
