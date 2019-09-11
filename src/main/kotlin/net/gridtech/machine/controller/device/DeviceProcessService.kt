@@ -49,9 +49,9 @@ class DeviceProcessService {
                                             if (device.entityClass.healthy.getFieldValue(device).value == false) {
                                                 Observable.just(ProcessNextAction.ERROR to processRuntime)
                                             } else {
-                                                deviceProcessStep.execute?.apply {
-                                                    val session = device.entityClass.currentProcess.getFieldValue(device).session
-                                                    readWriteService.executeEntityWrite(this, session)
+                                                val session = device.entityClass.currentProcess.getFieldValue(device).session
+                                                deviceProcessStep.writes.forEach {
+                                                    readWriteService.executeEntityWrite(it, session)
                                                 }
                                                 Observable.merge(
                                                         readWriteService.readConditionObservable(deviceProcessStep.endCondition)

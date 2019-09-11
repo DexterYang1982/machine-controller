@@ -100,7 +100,7 @@ class ReadWriteService {
                                                     modbusUnit.entityClass.description.observable
                                                             .switchMap { _ ->
                                                                 modbusUnit.getReadPointFieldValue(modbusRead.readPointId)
-                                                                        ?.observable?.map { it.id == entityRead.valueDescriptionId }
+                                                                        ?.observable?.map { it.id == entityRead.valueDescriptionId}
                                                                         ?: Observable.empty()
                                                             }
                                                 }
