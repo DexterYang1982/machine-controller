@@ -91,11 +91,11 @@ class ReadWriteService {
         val watchEachFieldValue = readCondition.reads.map { entityRead ->
             when (entityRead.targetType) {
                 ReadTargetType.DEVICE_STATUS -> {
-                    bootService.dataHolder.getEntityByIdObservable<Device>(entityRead.entityId).toObservable()
+                    bootService.dataHolder.getEntityByIdObservable<Device>(entityRead.entityId)
                             .flatMap { device ->
                                 device.description.observable.switchMap {
                                     device.getStatusById(entityRead.targetId)?.let { modbusRead ->
-                                        bootService.dataHolder.getEntityByIdObservable<ModbusUnit>(modbusRead.modbusUnitId).toObservable()
+                                        bootService.dataHolder.getEntityByIdObservable<ModbusUnit>(modbusRead.modbusUnitId)
                                                 .flatMap { modbusUnit ->
                                                     modbusUnit.entityClass.description.observable
                                                             .switchMap { _ ->

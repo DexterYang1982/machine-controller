@@ -25,7 +25,7 @@ class TunnelTransactionService {
             currentTransaction.observable.subscribe {
                 val transaction = clone(it)
                 getNextProcessQueue(transaction)?.takeIf { queue -> queue.isNotEmpty() }?.apply {
-                    bootService.dataHolder.getEntityByIdObservable<Device>(first().deviceId).subscribe { device, _ ->
+                    bootService.dataHolder.getEntityByIdObservable<Device>(first().deviceId).subscribe { device ->
                         device.addNewProcessQueue(this)
                     }
                     currentTransaction.update(transaction, transaction.transactionSession)

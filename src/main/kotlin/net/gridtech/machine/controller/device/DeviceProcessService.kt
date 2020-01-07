@@ -126,7 +126,7 @@ class DeviceProcessService {
                             }
                             processRuntime.tunnelId
                                     ?.let { bootService.dataHolder.getEntityByIdObservable<Tunnel>(it) }
-                                    ?.subscribe { tunnel, _ ->
+                                    ?.subscribe { tunnel ->
                                         tunnel.updateTunnelProcessState(processRuntime)
                                     }
                             currentProcessFieldValue.update(processRuntime, currentProcessFieldValue.session)
